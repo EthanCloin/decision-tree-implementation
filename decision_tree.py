@@ -44,16 +44,26 @@ class DecisionTreeNode:
     def build_decision_tree(self, examples, attributes, parent_examples):
         pass
 
-    def compute_information_gain(self):
-        pass
+    def compute_information_gain(self, dataset: pd.DataFrame, attribute: str):
+        # information gain measures the benefit of splitting on a particular attribute
+        # Gain(D, a) = Entropy(parent) –[weighted_average Entropy(children)]
+        parent_entropy = self.compute_entropy(dataset)
+        information_gain = parent_entropy
+
+        for attr in np.unique(dataset[attribute]):
+            matching_examples = dataset[dataset[attribute] == attr]
+            attr_entropy = self.compute_entropy(matching_examples)
+            weighted_entropy = (len(matching_examples) / len(dataset)) * attr_entropy
+            information_gain -= weighted_entropy
+        return information_gain
 
     def compute_entropy(self, dataset: pd.DataFrame):
-        # entropy(D) = -sum(each k in K p_k * log(p_k))
+        # entropy(D) = -sum(each k in K p_k * log_2(p_k))
         # where p_k is percent of examples in D labeled by y_k
-        examples, labels = dataset.iloc[:, :-1], dataset.iloc[:, -1]
+        labels = dataset.iloc[:, -1]
         entropy = 0.0
         for y in np.unique(labels):
             # percent of examples which have current label
             p_k = len([label for label in labels if label == y]) / len(labels)
             entropy += p_k * np.log2(p_k)
-        return -entropy
+        return 0 if entropy == 0 else -entropy
