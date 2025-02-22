@@ -44,14 +44,29 @@ class DecisionTreeNode:
     def build_decision_tree(self, examples, attributes, parent_examples):
         pass
 
+    def compute_gain_ratio(self, dataset, attribute):
+        gain = self.compute_information_gain(dataset, attribute)
+        iv = self.compute_intrinsic_value(dataset, attribute)
+        return gain / iv
+
+    def compute_intrinsic_value(self, dataset, attribute):
+        intrinsic_value = 0
+        for unique_value in np.unique(dataset[attribute]):
+            matching_examples = dataset[dataset[attribute] == unique_value]
+            partial_iv = (len(matching_examples) / len(dataset)) * np.log2(
+                (len(matching_examples) / len(dataset))
+            )
+            intrinsic_value += partial_iv
+        return -intrinsic_value
+
     def compute_information_gain(self, dataset: pd.DataFrame, attribute: str):
         # information gain measures the benefit of splitting on a particular attribute
         # Gain(D, a) = Entropy(parent) –[weighted_average Entropy(children)]
         parent_entropy = self.compute_entropy(dataset)
         information_gain = parent_entropy
 
-        for attr in np.unique(dataset[attribute]):
-            matching_examples = dataset[dataset[attribute] == attr]
+        for unique_value in np.unique(dataset[attribute]):
+            matching_examples = dataset[dataset[attribute] == unique_value]
             attr_entropy = self.compute_entropy(matching_examples)
             weighted_entropy = (len(matching_examples) / len(dataset)) * attr_entropy
             information_gain -= weighted_entropy
