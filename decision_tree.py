@@ -44,6 +44,53 @@ class DecisionTreeNode:
     def build_decision_tree(self, examples, attributes, parent_examples):
         pass
 
+    def select_lowest_gini_index(self, dataset):
+        examples = dataset.iloc[:, 0:-1]
+
+        lowest_gini = 100
+        selected_attr = None
+        for attribute in examples.columns:
+            gini = self.compute_gini_index(dataset, attribute)
+            if gini < lowest_gini:
+                lowest_gini = gini
+                selected_attr = attribute
+        return selected_attr
+
+    # TODO: get a test value to dummy check this
+    def compute_gini_index(self, dataset, attribute):
+        gini_index = 0
+        for unique_value in np.unique(dataset[attribute]):
+            matching_examples = dataset[dataset[attribute] == unique_value]
+            gini_value = self.compute_gini_value(matching_examples)
+            partial_gini_index = (len(matching_examples) / len(dataset)) * gini_value
+            gini_index += partial_gini_index
+        return gini_index
+
+    def compute_gini_value(self, dataset):
+        # 1 - sum(y in unique_labels p_k^2)
+        # where p_k is the percent of examples in D labeled by y
+        gini_value = 0
+        # assuming last col in dataset is labels
+        labels = dataset.iloc[:, -1]
+        for y in np.unique(labels):
+            p_k = len([label for label in labels if label == y]) / len(labels)
+            gini_value += p_k * p_k
+        return 1 - gini_value
+
+    def select_highest_gain_ratio(self, dataset: pd.DataFrame):
+        """this is the Importance fxn for Quinlan C4.5"""
+        # assuming last col in dataset is labels
+        examples = dataset.iloc[:, 0:-1]
+
+        highest_gain = 0
+        selected_attr = None
+        for attribute in examples.columns:
+            gain = self.compute_gain_ratio(dataset, attribute)
+            if gain > highest_gain:
+                highest_gain = gain
+                selected_attr = attribute
+        return selected_attr
+
     def compute_gain_ratio(self, dataset, attribute):
         gain = self.compute_information_gain(dataset, attribute)
         iv = self.compute_intrinsic_value(dataset, attribute)
@@ -75,6 +122,8 @@ class DecisionTreeNode:
     def compute_entropy(self, dataset: pd.DataFrame):
         # entropy(D) = -sum(each k in K p_k * log_2(p_k))
         # where p_k is percent of examples in D labeled by y_k
+
+        # assuming last col in dataset is labels
         labels = dataset.iloc[:, -1]
         entropy = 0.0
         for y in np.unique(labels):

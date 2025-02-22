@@ -66,13 +66,19 @@ simple_example = pd.DataFrame(
         "C": ["I", "I", "II", "II"],
     }
 )
-# expect information_gain 0.31127812445913283
-print(node.compute_information_gain(simple_example, "X"))
-# expect information_gain 1.0
-print(node.compute_information_gain(simple_example, "Y"))
-# expect information_gain 0
-print(node.compute_information_gain(simple_example, "Z"))
-# expect intrinsic value 0.8112781244591328
-print(node.compute_intrinsic_value(simple_example, "X"))
-# expect gain ratio 0.3836885465963443
-print(node.compute_gain_ratio(simple_example, "X"))
+# # expect information_gain 0.31127812445913283
+# print(node.compute_information_gain(simple_example, "X"))
+# # expect information_gain 1.0
+# print(node.compute_information_gain(simple_example, "Y"))
+# # expect information_gain 0
+# print(node.compute_information_gain(simple_example, "Z"))
+# # expect intrinsic value 0.8112781244591328
+# print(node.compute_intrinsic_value(simple_example, "X"))
+# # expect gain ratio 0.3836885465963443
+# print(node.compute_gain_ratio(simple_example, "X"))
+# # expect attribute selected "Y"
+print(node.select_highest_gain_ratio(simple_example))
+
+print(node.compute_gini_value(simple_example))
+print(node.compute_gini_index(simple_example, "X"))
+print(node.select_lowest_gini_index(simple_example))
