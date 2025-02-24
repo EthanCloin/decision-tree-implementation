@@ -66,7 +66,7 @@ simple_example = pd.DataFrame(
         "C": ["I", "I", "II", "II"],
     }
 )
-# # expect information_gain 0.31127812445913283
+# expect information_gain 0.31127812445913283
 # print(node.compute_information_gain(simple_example, "X"))
 # # expect information_gain 1.0
 # print(node.compute_information_gain(simple_example, "Y"))
@@ -77,8 +77,12 @@ simple_example = pd.DataFrame(
 # # expect gain ratio 0.3836885465963443
 # print(node.compute_gain_ratio(simple_example, "X"))
 # # expect attribute selected "Y"
-print(node.select_highest_gain_ratio(simple_example))
+# print(node.select_highest_gain_ratio(simple_example))
 
-print(node.compute_gini_value(simple_example))
-print(node.compute_gini_index(simple_example, "X"))
-print(node.select_lowest_gini_index(simple_example))
+# print(node.compute_gini_value(simple_example))
+# print(node.compute_gini_index(simple_example, "X"))
+# print(node.select_lowest_gini_index(simple_example))
+
+tree = DecisionTreeNode(max_depth=5, importance_method="C4.5")
+tree.build_decision_tree(simple_example, simple_example)
+print(tree)

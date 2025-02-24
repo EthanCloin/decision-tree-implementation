@@ -38,13 +38,78 @@ class DecisionTreeNode:
 
     # TODO: figure out bipartition stuff and consider if i need to label attributes as continuous
 
-    def __init__(self):
+    def __init__(self, depth=0, max_depth=None, importance_method=None):
+        # for tracking
+        self.depth = depth
+        self.max_depth = max_depth
+
+        # for predicting
         self.children = {}
         self.attribute = None
         self.predicted_value = None
+        self.importance_method = importance_method
 
-    def build_decision_tree(self, examples, attributes, parent_examples):
+        # for continuous
+        self.threshold = None
+        self.left = None
+        self.right = None
+
+    def build_decision_tree(self, dataset: pd.DataFrame, parent_examples):
+        """returns a node"""
+        # base cases
+        if dataset.empty:
+            self.predicted_value = self.plurality_value(parent_examples)
+            return self
+
+        labels = dataset.iloc[:, -1]
+        # all same label
+        if labels.nunique() == 1:
+            self.predicted_value = self.plurality_value(parent_examples)
+            return self
+
+        # no more attributes, only label column
+        if len(dataset.columns) == 1:
+            self.predicted_value = self.plurality_value(parent_examples)
+            return self
+
+        if self.importance_method == "C4.5":
+            # TODO: see if attribute ever comes back as None
+            attribute, best_split = self.select_highest_gain_ratio(dataset)
+            self.attribute = attribute
+
+            # build the two children as split by threshold value
+            if best_split is not None:
+                self.threshold = best_split
+                self.left = DecisionTreeNode(
+                    depth=self.depth + 1, max_depth=self.max_depth
+                )
+                self.right = DecisionTreeNode(
+                    depth=self.depth + 1, max_depth=self.max_depth
+                )
+                self.left.build_decision_tree(
+                    dataset[dataset[attribute] <= self.threshold]
+                )
+                self.right.build_decision_tree(
+                    dataset[dataset[attribute] > self.threshold]
+                )
+            else:
+                for unique_value in np.unique(dataset[attribute]):
+                    matching_examples = dataset[
+                        dataset[attribute] == unique_value
+                    ].copy()
+
+                    # drop attribute, same idea as passing in attributes - A in pseudocode
+                    matching_examples = matching_examples.drop(columns=[attribute])
+                    child = DecisionTreeNode(
+                        depth=self.depth + 1, max_depth=self.max_depth
+                    )
+                    self.children[unique_value] = child
+                    child.build_decision_tree(matching_examples, dataset)
+
         pass
+
+    def plurality_value(self, dataset: pd.DataFrame):
+        return dataset.iloc[:, -1].mode()
 
     def select_lowest_gini_index(self, dataset):
         examples = dataset.iloc[:, 0:-1]
@@ -124,26 +189,40 @@ class DecisionTreeNode:
         highest_gain = 0
         selected_attr = None
         for attribute in examples.columns:
-            gain = self.compute_gain_ratio(dataset, attribute)
+            gain, best_split = self.compute_gain_ratio(dataset, attribute)
             if gain > highest_gain:
                 highest_gain = gain
                 selected_attr = attribute
-        return selected_attr
+        return selected_attr, best_split
 
-    def compute_gain_ratio(self, dataset, attribute):
-        gain = self.compute_information_gain(dataset, attribute)
-        iv = self.compute_intrinsic_value(dataset, attribute)
-        return gain / iv
+    def compute_gain_ratio(self, dataset, attribute) -> tuple[float, float]:
+        """returns gain ratio and best split value if attribute is continuous"""
+        gain, best_split = self.compute_information_gain(dataset, attribute)
+        iv = self.compute_intrinsic_value(dataset, attribute, best_split)
+        return gain / iv, best_split
 
-    def compute_intrinsic_value(self, dataset, attribute):
-        intrinsic_value = 0
-        for unique_value in np.unique(dataset[attribute]):
-            matching_examples = dataset[dataset[attribute] == unique_value]
-            partial_iv = (len(matching_examples) / len(dataset)) * np.log2(
-                (len(matching_examples) / len(dataset))
+    def compute_intrinsic_value(self, dataset, attribute, split_point=None):
+        if split_point:
+            left = dataset[dataset[attribute] <= split_point]
+            right = dataset[dataset[attribute] > split_point]
+
+            left_weight = len(left) / len(dataset)
+            right_weight = len(right) / len(dataset)
+
+            intrinsic_value = -(
+                (left_weight * np.log2(left_weight) if left_weight > 0 else 0)
+                + (right_weight * np.log2(right_weight) if right_weight > 0 else 0)
             )
-            intrinsic_value += partial_iv
-        return -intrinsic_value
+            return intrinsic_value
+        else:
+            intrinsic_value = 0
+            for unique_value in np.unique(dataset[attribute]):
+                matching_examples = dataset[dataset[attribute] == unique_value]
+                weight = len(matching_examples) / len(dataset)
+                partial_iv = weight * np.log2(weight) if weight > 0 else 0
+
+                intrinsic_value += partial_iv
+            return -intrinsic_value
 
     def compute_information_gain(self, dataset: pd.DataFrame, attribute: str):
         if self.is_continuous(attribute):
@@ -165,7 +244,7 @@ class DecisionTreeNode:
                 if gain > best_gain:
                     best_gain = gain
                     best_split = t
-            return best_gain
+            return best_gain, best_split
         else:
             # information gain measures the benefit of splitting on a particular attribute
             # Gain(D, a) = Entropy(parent) –[weighted_average Entropy(children)]
@@ -179,7 +258,7 @@ class DecisionTreeNode:
                     len(matching_examples) / len(dataset)
                 ) * attr_entropy
                 information_gain -= weighted_entropy
-            return information_gain
+            return information_gain, None
 
     def compute_entropy(self, dataset: pd.DataFrame):
         # entropy(D) = -sum(each k in K p_k * log_2(p_k))
