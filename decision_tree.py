@@ -54,22 +54,40 @@ class DecisionTreeNode:
         self.left = None
         self.right = None
 
+    def print_tree(self, level=0):
+        """Recursively prints the tree structure with indentation."""
+        indent = "    " * level  # Indentation for readability
+
+        if self.predicted_value is not None:  # Leaf node
+            print(f"{indent}Leaf: {self.predicted_value}")
+            return
+
+        if self.threshold is not None:  # Continuous split
+            print(f"{indent}[{self.attribute} <= {self.threshold}]")
+            if self.left:
+                print(f"{indent}--> Left:")
+                self.left.print_tree(level + 1)
+            if self.right:
+                print(f"{indent}--> Right:")
+                self.right.print_tree(level + 1)
+        else:  # Discrete split
+            print(f"{indent}[Split on {self.attribute}]")
+            for value, child in self.children.items():
+                print(f"{indent}--> {self.attribute} = {value}:")
+                child.print_tree(level + 1)
+
     def build_decision_tree(self, dataset: pd.DataFrame, parent_examples):
         """returns a node"""
         # base cases
-        if dataset.empty:
-            self.predicted_value = self.plurality_value(parent_examples)
+        # no more attributes, only label column
+        if dataset.empty or len(dataset.columns) == 1:
+            self.predicted_value = self.plurality_value(dataset)
             return self
 
         labels = dataset.iloc[:, -1]
         # all same label
         if labels.nunique() == 1:
-            self.predicted_value = self.plurality_value(parent_examples)
-            return self
-
-        # no more attributes, only label column
-        if len(dataset.columns) == 1:
-            self.predicted_value = self.plurality_value(parent_examples)
+            self.predicted_value = self.plurality_value(dataset)
             return self
 
         if self.importance_method == "C4.5":
@@ -109,7 +127,7 @@ class DecisionTreeNode:
         pass
 
     def plurality_value(self, dataset: pd.DataFrame):
-        return dataset.iloc[:, -1].mode()
+        return dataset.iloc[:, -1].mode().values[0]
 
     def select_lowest_gini_index(self, dataset):
         examples = dataset.iloc[:, 0:-1]

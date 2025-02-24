@@ -85,4 +85,5 @@ simple_example = pd.DataFrame(
 
 tree = DecisionTreeNode(max_depth=5, importance_method="C4.5")
 tree.build_decision_tree(simple_example, simple_example)
-print(tree)
+tree.print_tree()
+# print(tree)
