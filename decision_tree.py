@@ -64,16 +64,8 @@ class DecisionTreeNode:
         if self.is_continuous(attribute):
             best_gini = float("inf")
             best_split = None
+            split_points = self.compute_split_points(dataset, attribute)
 
-            split_points = []
-            attr_values = np.sort(np.unique(dataset[attribute]))
-            # compute split points
-            for val, i in enumerate(attr_values):
-                # avoid outofbounds err
-                if i == len(attr_values) - 1:
-                    continue
-                midpoint = (val + attr_values[i + 1]) / 2
-                split_points.append(midpoint)
             # compute gini index for each split pint
             for t in split_points:
                 left = dataset[dataset[attribute] <= t]
@@ -99,6 +91,19 @@ class DecisionTreeNode:
                 ) * gini_value
                 gini_index += partial_gini_index
             return gini_index
+
+    def compute_split_points(self, dataset, attribute):
+        split_points = []
+
+        attr_values = np.sort(np.unique(dataset[attribute]))
+        # compute split points
+        for val, i in enumerate(attr_values):
+            # avoid outofbounds err
+            if i == len(attr_values) - 1:
+                continue
+            midpoint = (val + attr_values[i + 1]) / 2
+            split_points.append(midpoint)
+        return split_points
 
     def compute_gini_value(self, dataset):
         # 1 - sum(y in unique_labels p_k^2)
@@ -141,17 +146,40 @@ class DecisionTreeNode:
         return -intrinsic_value
 
     def compute_information_gain(self, dataset: pd.DataFrame, attribute: str):
-        # information gain measures the benefit of splitting on a particular attribute
-        # Gain(D, a) = Entropy(parent) –[weighted_average Entropy(children)]
-        parent_entropy = self.compute_entropy(dataset)
-        information_gain = parent_entropy
+        if self.is_continuous(attribute):
+            split_points = self.compute_split_points(dataset, attribute)
+            parent_entropy = self.compute_entropy(dataset)
+            best_gain = float("-inf")
+            best_split = None
 
-        for unique_value in np.unique(dataset[attribute]):
-            matching_examples = dataset[dataset[attribute] == unique_value]
-            attr_entropy = self.compute_entropy(matching_examples)
-            weighted_entropy = (len(matching_examples) / len(dataset)) * attr_entropy
-            information_gain -= weighted_entropy
-        return information_gain
+            for t in split_points:
+                left = dataset[dataset[attribute] <= t]
+                right = dataset[dataset[attribute] > t]
+
+                left_entropy = self.compute_entropy(left)
+                right_entropy = self.compute_entropy(right)
+                weighted_entropy = ((len(left) / len(dataset)) * left_entropy) + (
+                    (len(right) / len(dataset)) * right_entropy
+                )
+                gain = parent_entropy - weighted_entropy
+                if gain > best_gain:
+                    best_gain = gain
+                    best_split = t
+            return best_gain
+        else:
+            # information gain measures the benefit of splitting on a particular attribute
+            # Gain(D, a) = Entropy(parent) –[weighted_average Entropy(children)]
+            parent_entropy = self.compute_entropy(dataset)
+            information_gain = parent_entropy
+
+            for unique_value in np.unique(dataset[attribute]):
+                matching_examples = dataset[dataset[attribute] == unique_value]
+                attr_entropy = self.compute_entropy(matching_examples)
+                weighted_entropy = (
+                    len(matching_examples) / len(dataset)
+                ) * attr_entropy
+                information_gain -= weighted_entropy
+            return information_gain
 
     def compute_entropy(self, dataset: pd.DataFrame):
         # entropy(D) = -sum(each k in K p_k * log_2(p_k))
@@ -165,3 +193,7 @@ class DecisionTreeNode:
             p_k = len([label for label in labels if label == y]) / len(labels)
             entropy += p_k * np.log2(p_k)
         return 0 if entropy == 0 else -entropy
+
+    def is_continuous(self, attribute):
+        continuous_attributes = ["A15", "A14", "A11", "A8", "A3", "A2"]
+        return attribute in continuous_attributes
