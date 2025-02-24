@@ -36,6 +36,8 @@ class DecisionTreeNode:
     - children: dictionary mapping to nodes deeper in the tree
     """
 
+    # TODO: figure out bipartition stuff and consider if i need to label attributes as continuous
+
     def __init__(self):
         self.children = {}
         self.attribute = None
@@ -47,7 +49,7 @@ class DecisionTreeNode:
     def select_lowest_gini_index(self, dataset):
         examples = dataset.iloc[:, 0:-1]
 
-        lowest_gini = 100
+        lowest_gini = float("inf")
         selected_attr = None
         for attribute in examples.columns:
             gini = self.compute_gini_index(dataset, attribute)
@@ -57,14 +59,46 @@ class DecisionTreeNode:
         return selected_attr
 
     # TODO: get a test value to dummy check this
+    # NOTE: this one checks if the attr is continuous and decides to do bipartition if needed
     def compute_gini_index(self, dataset, attribute):
-        gini_index = 0
-        for unique_value in np.unique(dataset[attribute]):
-            matching_examples = dataset[dataset[attribute] == unique_value]
-            gini_value = self.compute_gini_value(matching_examples)
-            partial_gini_index = (len(matching_examples) / len(dataset)) * gini_value
-            gini_index += partial_gini_index
-        return gini_index
+        if self.is_continuous(attribute):
+            best_gini = float("inf")
+            best_split = None
+
+            split_points = []
+            attr_values = np.sort(np.unique(dataset[attribute]))
+            # compute split points
+            for val, i in enumerate(attr_values):
+                # avoid outofbounds err
+                if i == len(attr_values) - 1:
+                    continue
+                midpoint = (val + attr_values[i + 1]) / 2
+                split_points.append(midpoint)
+            # compute gini index for each split pint
+            for t in split_points:
+                left = dataset[dataset[attribute] <= t]
+                right = dataset[dataset[attribute] > t]
+
+                left_gini = self.compute_gini_value(left)
+                right_gini = self.compute_gini_value(right)
+                weighted_gini = ((len(left) / len(dataset)) * left_gini) + (
+                    (len(right) / len(dataset)) * right_gini
+                )
+
+                if weighted_gini < best_gini:
+                    best_gini = weighted_gini
+                    best_split = t  # not returning now but might need to add to the node or smth?
+            return best_gini
+        else:
+            gini_index = 0
+            for unique_value in np.unique(dataset[attribute]):
+                matching_examples = dataset[dataset[attribute] == unique_value]
+                gini_value = self.compute_gini_value(matching_examples)
+                partial_gini_index = (
+                    len(matching_examples) / len(dataset)
+                ) * gini_value
+                gini_index += partial_gini_index
+            return gini_index
 
     def compute_gini_value(self, dataset):
         # 1 - sum(y in unique_labels p_k^2)
