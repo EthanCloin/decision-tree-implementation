@@ -89,8 +89,13 @@ class DecisionTreeNode:
     def build_decision_tree(self, dataset: pd.DataFrame, parent_examples=None):
         """returns a node"""
         # base cases
-        # no more attributes, only label column
-        if dataset.empty or len(dataset.columns) == 1:
+
+        # no more examples
+        if dataset.empty:
+            self.predicted_value = self.plurality_value(parent_examples)
+            return self
+        # only label column remains
+        if len(dataset.columns) == 1:
             self.predicted_value = self.plurality_value(dataset)
             return self
 
@@ -117,6 +122,9 @@ class DecisionTreeNode:
             self.right = DecisionTreeNode(
                 depth=self.depth + 1, max_depth=self.max_depth, algorithm=self.algorithm
             )
+            # compare size of split dataset
+            leftlen = len(dataset[dataset[attribute] <= self.threshold])
+            rightlen = len(dataset[dataset[attribute] > self.threshold])
             self.left.build_decision_tree(
                 dataset[dataset[attribute] <= self.threshold], dataset
             )
@@ -146,11 +154,15 @@ class DecisionTreeNode:
 
         lowest_gini = float("inf")
         selected_attr = None
+        best_split = None
+
         for attribute in examples.columns:
-            gini, best_split = self.compute_gini_index(dataset, attribute)
+            gini, split_point = self.compute_gini_index(dataset, attribute)
             if gini < lowest_gini:
                 lowest_gini = gini
                 selected_attr = attribute
+                best_split = split_point
+
         return selected_attr, best_split
 
     # NOTE: this one checks if the attr is continuous and decides to do bipartition if needed
@@ -173,7 +185,7 @@ class DecisionTreeNode:
 
                 if weighted_gini < best_gini:
                     best_gini = weighted_gini
-                    best_split = t  # not returning now but might need to add to the node or smth?
+                    best_split = t
             return best_gini, best_split
         else:
             gini_index = 0
@@ -184,7 +196,7 @@ class DecisionTreeNode:
                     len(matching_examples) / len(dataset)
                 ) * gini_value
                 gini_index += partial_gini_index
-            return gini_index
+            return gini_index, None
 
     def compute_split_points(self, dataset, attribute):
         split_points = []
@@ -219,11 +231,11 @@ class DecisionTreeNode:
         highest_gain = 0
         selected_attr = None
         for attribute in examples.columns:
-            gain, best_split = self.compute_gain_ratio(dataset, attribute)
+            gain, split_point = self.compute_gain_ratio(dataset, attribute)
             if gain > highest_gain:
                 highest_gain = gain
                 selected_attr = attribute
-        best_split = None if not self.is_continuous(selected_attr) else best_split
+                best_split = split_point
         return selected_attr, best_split
 
     def compute_gain_ratio(self, dataset, attribute):
@@ -231,7 +243,8 @@ class DecisionTreeNode:
         # BUG: A9 is a categorical attribute but returning a best_split value?
         gain, best_split = self.compute_information_gain(dataset, attribute)
         iv = self.compute_intrinsic_value(dataset, attribute, best_split)
-        return gain / iv, best_split
+        gain_ratio = gain / iv if iv != 0 else 0
+        return gain_ratio, best_split
 
     def compute_intrinsic_value(self, dataset, attribute, split_point=None):
         if split_point:
