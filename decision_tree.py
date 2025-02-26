@@ -38,7 +38,7 @@ class DecisionTreeNode:
 
     # TODO: figure out bipartition stuff and consider if i need to label attributes as continuous
 
-    def __init__(self, depth=0, max_depth=None, importance_method=None):
+    def __init__(self, depth=0, max_depth=None, algorithm="C4.5"):
         # for tracking
         self.depth = depth
         self.max_depth = max_depth
@@ -47,7 +47,17 @@ class DecisionTreeNode:
         self.children = {}
         self.attribute = None
         self.predicted_value = None
+
+        # TODO: make this less hacky
+        if algorithm == "C4.5":
+            importance_method = self.select_highest_gain_ratio
+        elif algorithm == "CART":
+            importance_method = self.select_lowest_gini_index
+        else:
+            err = f"{algorithm} is invalid. accepted algorithms are 'C4.5' or 'CART'"
+            raise ValueError(err)
         self.importance_method = importance_method
+        self.algorithm = algorithm
 
         # for continuous
         self.threshold = None
@@ -59,7 +69,7 @@ class DecisionTreeNode:
         indent = "    " * level  # Indentation for readability
 
         if self.predicted_value is not None:  # Leaf node
-            print(f"{indent}Leaf: {self.predicted_value}")
+            print(f"{indent}Predict: {self.predicted_value}")
             return
 
         if self.threshold is not None:  # Continuous split
@@ -76,11 +86,16 @@ class DecisionTreeNode:
                 print(f"{indent}--> {self.attribute} = {value}:")
                 child.print_tree(level + 1)
 
-    def build_decision_tree(self, dataset: pd.DataFrame, parent_examples):
+    def build_decision_tree(self, dataset: pd.DataFrame, parent_examples=None):
         """returns a node"""
         # base cases
         # no more attributes, only label column
         if dataset.empty or len(dataset.columns) == 1:
+            self.predicted_value = self.plurality_value(dataset)
+            return self
+
+        # hit my max depth
+        if self.depth == self.max_depth:
             self.predicted_value = self.plurality_value(dataset)
             return self
 
@@ -90,41 +105,38 @@ class DecisionTreeNode:
             self.predicted_value = self.plurality_value(dataset)
             return self
 
-        if self.importance_method == "C4.5":
-            # TODO: see if attribute ever comes back as None
-            attribute, best_split = self.select_highest_gain_ratio(dataset)
-            self.attribute = attribute
+        # TODO: might need to handle if attribute ever comes back as None
+        attribute, best_split = self.importance_method(dataset)
+        self.attribute = attribute
 
-            # build the two children as split by threshold value
-            if best_split is not None:
-                self.threshold = best_split
-                self.left = DecisionTreeNode(
-                    depth=self.depth + 1, max_depth=self.max_depth
-                )
-                self.right = DecisionTreeNode(
-                    depth=self.depth + 1, max_depth=self.max_depth
-                )
-                self.left.build_decision_tree(
-                    dataset[dataset[attribute] <= self.threshold]
-                )
-                self.right.build_decision_tree(
-                    dataset[dataset[attribute] > self.threshold]
-                )
-            else:
-                for unique_value in np.unique(dataset[attribute]):
-                    matching_examples = dataset[
-                        dataset[attribute] == unique_value
-                    ].copy()
+        if best_split is not None:  # split on continuous attr case
+            self.threshold = best_split
+            self.left = DecisionTreeNode(
+                depth=self.depth + 1, max_depth=self.max_depth, algorithm=self.algorithm
+            )
+            self.right = DecisionTreeNode(
+                depth=self.depth + 1, max_depth=self.max_depth, algorithm=self.algorithm
+            )
+            self.left.build_decision_tree(
+                dataset[dataset[attribute] <= self.threshold], dataset
+            )
+            self.right.build_decision_tree(
+                dataset[dataset[attribute] > self.threshold], dataset
+            )
+        else:  # split on categorical attr case
+            for unique_value in np.unique(dataset[attribute]):
+                matching_examples = dataset[dataset[attribute] == unique_value].copy()
 
-                    # drop attribute, same idea as passing in attributes - A in pseudocode
-                    matching_examples = matching_examples.drop(columns=[attribute])
-                    child = DecisionTreeNode(
-                        depth=self.depth + 1, max_depth=self.max_depth
-                    )
-                    self.children[unique_value] = child
-                    child.build_decision_tree(matching_examples, dataset)
-
-        pass
+                # drop attribute, same idea as passing in attributes - A in pseudocode
+                matching_examples = matching_examples.drop(columns=[attribute])
+                child = DecisionTreeNode(
+                    depth=self.depth + 1,
+                    max_depth=self.max_depth,
+                    algorithm=self.algorithm,
+                )
+                self.children[unique_value] = child
+                child.build_decision_tree(matching_examples, dataset)
+        return self
 
     def plurality_value(self, dataset: pd.DataFrame):
         return dataset.iloc[:, -1].mode().values[0]
@@ -135,13 +147,12 @@ class DecisionTreeNode:
         lowest_gini = float("inf")
         selected_attr = None
         for attribute in examples.columns:
-            gini = self.compute_gini_index(dataset, attribute)
+            gini, best_split = self.compute_gini_index(dataset, attribute)
             if gini < lowest_gini:
                 lowest_gini = gini
                 selected_attr = attribute
-        return selected_attr
+        return selected_attr, best_split
 
-    # TODO: get a test value to dummy check this
     # NOTE: this one checks if the attr is continuous and decides to do bipartition if needed
     def compute_gini_index(self, dataset, attribute):
         if self.is_continuous(attribute):
@@ -163,7 +174,7 @@ class DecisionTreeNode:
                 if weighted_gini < best_gini:
                     best_gini = weighted_gini
                     best_split = t  # not returning now but might need to add to the node or smth?
-            return best_gini
+            return best_gini, best_split
         else:
             gini_index = 0
             for unique_value in np.unique(dataset[attribute]):
@@ -180,11 +191,12 @@ class DecisionTreeNode:
 
         attr_values = np.sort(np.unique(dataset[attribute]))
         # compute split points
-        for val, i in enumerate(attr_values):
+        for i, val in enumerate(attr_values):
             # avoid outofbounds err
             if i == len(attr_values) - 1:
                 continue
-            midpoint = (val + attr_values[i + 1]) / 2
+            next_val = attr_values[i + 1]
+            midpoint = (val + next_val) / 2
             split_points.append(midpoint)
         return split_points
 
@@ -211,10 +223,12 @@ class DecisionTreeNode:
             if gain > highest_gain:
                 highest_gain = gain
                 selected_attr = attribute
+        best_split = None if not self.is_continuous(selected_attr) else best_split
         return selected_attr, best_split
 
-    def compute_gain_ratio(self, dataset, attribute) -> tuple[float, float]:
+    def compute_gain_ratio(self, dataset, attribute):
         """returns gain ratio and best split value if attribute is continuous"""
+        # BUG: A9 is a categorical attribute but returning a best_split value?
         gain, best_split = self.compute_information_gain(dataset, attribute)
         iv = self.compute_intrinsic_value(dataset, attribute, best_split)
         return gain / iv, best_split
@@ -292,5 +306,6 @@ class DecisionTreeNode:
         return 0 if entropy == 0 else -entropy
 
     def is_continuous(self, attribute):
+        """as defined in the dataset description"""
         continuous_attributes = ["A15", "A14", "A11", "A8", "A3", "A2"]
         return attribute in continuous_attributes

@@ -19,7 +19,7 @@ identify each component of the data which must be considered by the decision tre
 4. Dataset (D): collection of example + label - {(x_1, y_1), (x_2, y_2), ..., (x_m, y_m)}
 """
 # TODO: move these into a unit test folder
-node = DecisionTreeNode()
+# node = DecisionTreeNode()
 
 # 7 true, 3 false, expected entropy = 0.88129089
 # test_df = pd.DataFrame(
@@ -83,7 +83,7 @@ simple_example = pd.DataFrame(
 # print(node.compute_gini_index(simple_example, "X"))
 # print(node.select_lowest_gini_index(simple_example))
 
-tree = DecisionTreeNode(max_depth=5, importance_method="C4.5")
-tree.build_decision_tree(simple_example, simple_example)
+tree = DecisionTreeNode(max_depth=5, algorithm="C4.5")
+tree.build_decision_tree(simple_example)
 tree.print_tree()
 # print(tree)
