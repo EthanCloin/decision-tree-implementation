@@ -47,6 +47,7 @@ class DecisionTreeNode:
         self.children = {}
         self.attribute = None
         self.predicted_value = None
+        self.backup_prediction = None
 
         # TODO: make this less hacky
         if algorithm == "C4.5":
@@ -110,6 +111,9 @@ class DecisionTreeNode:
             self.predicted_value = self.plurality_value(dataset)
             return self
 
+        # saving plurality value for each node as a default in case of missing children
+        self.backup_prediction = self.plurality_value(dataset)
+
         # TODO: might need to handle if attribute ever comes back as None
         attribute, best_split = self.importance_method(dataset)
         self.attribute = attribute
@@ -122,9 +126,7 @@ class DecisionTreeNode:
             self.right = DecisionTreeNode(
                 depth=self.depth + 1, max_depth=self.max_depth, algorithm=self.algorithm
             )
-            # compare size of split dataset
-            leftlen = len(dataset[dataset[attribute] <= self.threshold])
-            rightlen = len(dataset[dataset[attribute] > self.threshold])
+
             self.left.build_decision_tree(
                 dataset[dataset[attribute] <= self.threshold], dataset
             )
@@ -165,10 +167,14 @@ class DecisionTreeNode:
                 else:
                     node = node.right
             else:  # categorical split
-                node = node.children[
-                    example[node.attribute]
-                ]  # children are keyed on unique attr value
-                # do i need to handle a case where child isn't present? how?
+                if example[node.attribute] in node.children:
+                    node = node.children[example[node.attribute]]
+                else:
+                    # this is a weird case. i would like to return the plurality value
+                    # here but i don't have access to it?
+                    # update tree building to save it as an attr on the node?
+                    return node.backup_prediction
+
         return node.predicted_value
 
     def plurality_value(self, dataset: pd.DataFrame):
