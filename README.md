@@ -1,3 +1,10 @@
+# Running the Programs
+The `tree_training.ipynb` file is the only one which needs to be run. 
+
+Open the unzipped directory in your Jupyter Notebook environment of choice, and run the cells from top to bottom.
+
+`decision_tree.py` is imported and used by the notebook, and `main.py` was only used during development of the DecisionTreeNode class.
+
 # Resources
 
 1. [MTU Decision Tree Slides](https://pages.mtu.edu/~nilufer/classes/cs4811/2016-spring/lecture-slides/cs4811-ch18-decision-trees.pdf)
