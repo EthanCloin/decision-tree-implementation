@@ -32,11 +32,14 @@ class DecisionTreeNode:
     important attributes of my node class include
 
     - predicted_value: this will have a value only for leaf nodes
-    - attribute: which column in the dataset the node is basing its decision on
-    - children: dictionary mapping to nodes deeper in the tree
+    - backup_prediction: stores the plurality value for the dataset at this point in the tree
+    - attribute: which column in the dataset the node deciding (splitting the dataset) on
+    - children: dictionary mapping to nodes deeper in the tree, where the key is a particular attribute value (categorical only)
+    - algorithm: string determining which importance method to use
+    - threshold: (continous only) the best 'split point' for a given attribute at this level
+    - right: reference to a node to be followed when an example is above threshold
+    - left: reference to a node to be followed when an example is at or below threshold
     """
-
-    # TODO: figure out bipartition stuff and consider if i need to label attributes as continuous
 
     def __init__(self, depth=0, max_depth=None, algorithm="C4.5"):
         # for tracking
@@ -88,7 +91,6 @@ class DecisionTreeNode:
                 child.print_tree(level + 1)
 
     def build_decision_tree(self, dataset: pd.DataFrame, parent_examples=None):
-        """returns a node"""
         # base cases
 
         # no more examples
@@ -111,7 +113,8 @@ class DecisionTreeNode:
             self.predicted_value = self.plurality_value(dataset)
             return self
 
-        # saving plurality value for each node as a default in case of missing children
+        # saving plurality value for each node as a default
+        # 'weird case' as mentioned in _predict_example
         self.backup_prediction = self.plurality_value(dataset)
 
         # TODO: might need to handle if attribute ever comes back as None
@@ -154,10 +157,6 @@ class DecisionTreeNode:
         return dataset.apply(lambda example: self._predict_example(example), axis=1)
 
     def _predict_example(self, example):
-        """
-        in this case my dataset has no labels and my return value should be
-        a Series of same len as dataset but it's the predicted label values
-        """
         # first navigate to a leaf node
         node = self
         while node.predicted_value is None:
@@ -170,9 +169,8 @@ class DecisionTreeNode:
                 if example[node.attribute] in node.children:
                     node = node.children[example[node.attribute]]
                 else:
-                    # this is a weird case. i would like to return the plurality value
-                    # here but i don't have access to it?
-                    # update tree building to save it as an attr on the node?
+                    # this is a weird case. happens whenever a node on the tree doesn't
+                    # have a path matching the specific value of the example.
                     return node.backup_prediction
 
         return node.predicted_value
@@ -181,6 +179,7 @@ class DecisionTreeNode:
         return dataset.iloc[:, -1].mode().values[0]
 
     def select_lowest_gini_index(self, dataset):
+        """This is the Importance method for the CART algorithm"""
         examples = dataset.iloc[:, 0:-1]
 
         lowest_gini = float("inf")
