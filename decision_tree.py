@@ -146,6 +146,31 @@ class DecisionTreeNode:
                 child.build_decision_tree(matching_examples, dataset)
         return self
 
+    def predict(self, dataset):
+        if self.threshold is None and self.children is None:
+            raise Exception("tree must be built before predicting")
+        return dataset.apply(lambda example: self._predict_example(example), axis=1)
+
+    def _predict_example(self, example):
+        """
+        in this case my dataset has no labels and my return value should be
+        a Series of same len as dataset but it's the predicted label values
+        """
+        # first navigate to a leaf node
+        node = self
+        while node.predicted_value is None:
+            if node.threshold is not None:  # continuous split
+                if example[node.attribute] <= node.threshold:
+                    node = node.left
+                else:
+                    node = node.right
+            else:  # categorical split
+                node = node.children[
+                    example[node.attribute]
+                ]  # children are keyed on unique attr value
+                # do i need to handle a case where child isn't present? how?
+        return node.predicted_value
+
     def plurality_value(self, dataset: pd.DataFrame):
         return dataset.iloc[:, -1].mode().values[0]
 
